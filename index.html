@@ -234,6 +234,11 @@ input[type=range]:focus-visible::-webkit-slider-thumb{box-shadow:var(--ring),0 1
 .verdict.ok{background:var(--ok-bg);color:var(--ok-ink)}
 .verdict.bad{background:var(--danger-bg);color:var(--danger-ink)}
 .verdict.warn{background:var(--warn-bg);color:var(--warn-ink)}
+.verdict.ex{background:var(--fill-2);color:var(--ink-2)}
+.dbx-status{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 0 0;font-size:11.5px;color:var(--ok-ink)}
+.dbx-status span{display:inline-flex;align-items:center;gap:6px}
+.dbx-status span::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--ok-ink)}
+.dbx-status .text-btn{height:22px;font-size:11.5px}
 .rows{margin:0;display:flex;flex-direction:column}
 .rows div{display:flex;justify-content:space-between;gap:16px;padding:9px 0;border-top:1px solid var(--faint)}
 .rows div:first-child{border-top:0;padding-top:0}
@@ -289,7 +294,8 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
         <input id="linkInput" type="url" inputmode="url" autocomplete="off" spellcheck="false" placeholder="https://www.dropbox.com/scl/fi/…">
         <button type="submit" class="add-btn">Add</button>
       </div>
-      <p class="link-hint" id="linkHint">You can also press ⌘V anywhere on the page, or drag a link in.</p>
+      <p class="link-hint" id="linkHint">Works with file and folder links. You can also press ⌘V anywhere, or drag a link in.</p>
+      <p class="dbx-status" id="dbxStatus" hidden><span>Connected to Dropbox</span><button type="button" class="text-btn quiet" id="dbxSignOut">Disconnect</button></p>
     </form>
     <div class="list-wrap">
       <div class="list-head">
@@ -418,6 +424,29 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
   var REEL = 9 / 16, FPS = 30;
   var files = [], current = -1, mode = "zones", nextId = 1, scrubbing = false;
   var $ = function (id) { return document.getElementById(id); };
+  // ---------- Dropbox sign-in (OAuth PKCE; no server, no secret) ----------
+  // This page is also the OAuth redirect. In the sign-in popup it only finishes
+  // the sign-in, stores the token for this browser, and closes.
+  var DBX_KEY = "tymn65ngvtkr7i8";
+  var DBX_REDIRECT = "https://ronanheal.github.io/reel-safe-zones/";
+  var authLanding = null;
+  (function () {
+    var qs = new URLSearchParams(location.search);
+    if (!(qs.has("state") && (qs.has("code") || qs.has("error")))) return;
+    authLanding = { pend: lsGet("rsz-dbx-pending"), code: qs.get("code"), state: qs.get("state"), error: qs.get("error") };
+    try { history.replaceState(null, "", location.pathname + location.hash); } catch (e) {}
+  })();
+  if (authLanding && authLanding.pend && authLanding.pend.mode === "popup") {
+    document.body.innerHTML = '<p style="font:500 14px/1.5 Inter,system-ui,sans-serif;padding:48px 24px;text-align:center;color:#1C1A16">Connecting to Dropbox…</p>';
+    finishAuth(authLanding).then(function () {
+      document.body.firstChild.textContent = "Connected to Dropbox. You can close this window.";
+      setTimeout(function () { window.close(); }, 300);
+    }, function (err) {
+      document.body.firstChild.textContent = "Couldn't connect to Dropbox: " + err.message + ". Close this window and try again.";
+    });
+    return;
+  }
+
   var stage = $("stage"), overlay = $("overlay"), list = $("filelist");
   var mediaEl = null, msgEl = null;
 
@@ -425,6 +454,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     ok:   '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>',
     warn: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 2.5 20h19z"/><path d="M12 10v4"/><path d="M12 17.5h.01"/></svg>',
     bad:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6"/><path d="m15 9-6 6"/></svg>',
+    ex:   '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5"/><path d="M12 7.5h.01"/></svg>',
     x:    '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="m6 6 12 12"/><path d="M18 6 6 18"/></svg>'
   };
 
@@ -450,6 +480,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
   }
   function assess(f) {
     if (f.error) return { cls: "bad", pill: "Can't open", text: f.error };
+    if (!f.w && f.dbx && !f.url) return { cls: "ex", pill: "Not opened", text: "Opens when you select it. It downloads from Dropbox first." };
     if (!f.w) return { cls: "warn", pill: "Reading", text: "Reading file…" };
     var isReel = Math.abs((f.w / f.h) / REEL - 1) < 0.01;
     if (!isReel) return { cls: "bad", pill: "Not 9:16", text: "This is " + ratioName(f.w, f.h) + ", not 9:16. Instagram will crop or letterbox it. Re-export at 1080 × 1920." };
@@ -516,7 +547,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     var name = decodeURIComponent(u.pathname.split("/").filter(Boolean).pop() || "");
     if (host === "dropbox.com" || host.slice(-12) === ".dropbox.com") {
       if (/^\/(scl\/fo|sh)\//.test(u.pathname) && !(IMG_EXT.test(name) || VID_EXT.test(name)))
-        return { error: "That's a folder link. Open the folder in Dropbox and copy the link for one file." };
+        return { folder: true };
       u.searchParams.delete("dl");
       u.searchParams.set("raw", "1");
       return { url: u.toString(), name: name };
@@ -529,6 +560,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     var r = resolveLink(raw);
     if (meta.name) r.name = meta.name;
     if (r.error) return linkMsg(r.error, true), false;
+    if (r.folder) { openFolderLink(raw, !!meta.gesture); return true; }
     var kind = IMG_EXT.test(r.name) ? "image" : VID_EXT.test(r.name) ? "video" : null;
     if (!kind) return linkMsg("Can't tell if that's an image or a video. Links to JPG, PNG, MP4 or MOV files work.", true), false;
     var f = { id: nextId++, name: r.name, size: meta.size != null ? meta.size : null, kind: kind, url: r.url, remote: true, source: raw.trim(), thumb: meta.thumb };
@@ -538,6 +570,209 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     if (!meta.quiet) { select(files.indexOf(f)); linkMsg("Added " + r.name + ".", false); }
     return f;
   }
+
+  // ---------- Dropbox folder links ----------
+  function lsGet(k) { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } }
+  function lsSet(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function b64url(bytes) { var s = ""; bytes = new Uint8Array(bytes); for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]); return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""); }
+  function randStr(n) { var a = new Uint8Array(n); crypto.getRandomValues(a); return b64url(a).slice(0, n); }
+  function sha256url(text) { return crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)).then(b64url); }
+  // Dropbox-API-Arg must be ASCII
+  function headerJson(o) { return JSON.stringify(o).replace(/[\u007f-\uffff]/g, function (c) { return "\\u" + ("000" + c.charCodeAt(0).toString(16)).slice(-4); }); }
+
+  function tokenRequest(params) {
+    params.client_id = DBX_KEY;
+    return fetch("https://api.dropboxapi.com/oauth2/token", { method: "POST", body: new URLSearchParams(params) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(j.error_description || j.error || ("HTTP " + r.status)); return j; }); })
+      .then(function (j) {
+        var old = lsGet("rsz-dbx") || {};
+        var tok = { access_token: j.access_token, refresh_token: j.refresh_token || old.refresh_token, expires_at: Date.now() + (j.expires_in || 14400) * 1000 - 60000 };
+        lsSet("rsz-dbx", tok); renderDbxStatus(); return tok;
+      });
+  }
+  function finishAuth(l) {
+    var p = l.pend;
+    if (!p || p.state !== l.state) return Promise.reject(new Error("the sign-in link expired"));
+    lsSet("rsz-dbx-pending", null);
+    if (l.error) return Promise.reject(new Error(l.error === "access_denied" ? "access wasn't allowed" : l.error));
+    return tokenRequest({ grant_type: "authorization_code", code: l.code, code_verifier: p.verifier, redirect_uri: DBX_REDIRECT });
+  }
+  function accessToken() {
+    var t = lsGet("rsz-dbx");
+    if (!t) return Promise.resolve(null);
+    if (Date.now() < t.expires_at) return Promise.resolve(t.access_token);
+    if (!t.refresh_token) return Promise.resolve(null);
+    return tokenRequest({ grant_type: "refresh_token", refresh_token: t.refresh_token })
+      .then(function (n) { return n.access_token; }, function () { lsSet("rsz-dbx", null); renderDbxStatus(); return null; });
+  }
+  // Must run inside a click/paste so the popup isn't blocked.
+  function connectDropbox(folderUrl) {
+    var popup = null;
+    try { popup = window.open("", "rsz-dbx-auth", "width=520,height=720"); } catch (e) {}
+    var state = randStr(24), verifier = randStr(64);
+    return sha256url(verifier).then(function (challenge) {
+      var url = "https://www.dropbox.com/oauth2/authorize?" + new URLSearchParams({
+        client_id: DBX_KEY, response_type: "code", code_challenge: challenge, code_challenge_method: "S256",
+        redirect_uri: DBX_REDIRECT, token_access_type: "offline", state: state
+      });
+      lsSet("rsz-dbx-pending", { state: state, verifier: verifier, mode: popup ? "popup" : "redirect", folder: folderUrl });
+      if (!popup) { location.assign(url); return new Promise(function () {}); }
+      popup.location.href = url;
+      return new Promise(function (resolve, reject) {
+        var t0 = Date.now();
+        var iv = setInterval(function () {
+          var t = lsGet("rsz-dbx");
+          if (t && t.access_token && Date.now() < t.expires_at) { clearInterval(iv); renderDbxStatus(); resolve(t.access_token); }
+          else if (!lsGet("rsz-dbx-pending")) { clearInterval(iv); reject(new Error("Dropbox sign-in didn't finish. Paste the link again to retry.")); }
+          else if (Date.now() - t0 > 5 * 60 * 1000) { clearInterval(iv); lsSet("rsz-dbx-pending", null); reject(new Error("Dropbox sign-in timed out. Paste the link again to retry.")); }
+        }, 500);
+      });
+    });
+  }
+  function dbxCall(endpoint, args, opts, retried) {
+    opts = opts || {};
+    return accessToken().then(function (tok) {
+      if (!tok) { var e0 = new Error("auth"); e0.auth = true; throw e0; }
+      var url = (opts.content ? "https://content.dropboxapi.com/2/" : "https://api.dropboxapi.com/2/") + endpoint;
+      var init = { method: "POST", headers: { Authorization: "Bearer " + tok } };
+      if (opts.content) init.headers["Dropbox-API-Arg"] = headerJson(args);
+      else { init.headers["Content-Type"] = "application/json"; init.body = JSON.stringify(args); }
+      return fetch(url, init).then(function (r) {
+        if (r.status === 401) {
+          var t = lsGet("rsz-dbx");
+          if (!retried && t && t.refresh_token) { t.expires_at = 0; lsSet("rsz-dbx", t); return dbxCall(endpoint, args, opts, true); }
+          lsSet("rsz-dbx", null); renderDbxStatus();
+          var e1 = new Error("auth"); e1.auth = true; throw e1;
+        }
+        if (!r.ok) return r.text().then(function (txt) { var e2 = new Error(txt || ("HTTP " + r.status)); e2.status = r.status; e2.body = txt || ""; throw e2; });
+        return opts.content ? r : r.json();
+      });
+    });
+  }
+  function dbxErrorText(e) {
+    if (e && e.auth) return "Your Dropbox sign-in has expired. Paste the link again to reconnect.";
+    var b = (e && e.body) || "";
+    if (/shared_link_access_denied|shared_link_not_found|not_found/.test(b)) return "Dropbox won't open this link for your account. Check the link, and that you have access to it.";
+    if (/email_not_verified/.test(b)) return "Verify your Dropbox email address, then try again.";
+    if (/missing_scope|scope/.test(b)) return "The Dropbox app is missing a permission (sharing.read, files.metadata.read or files.content.read).";
+    if (e && e.status) return "Dropbox returned an error (" + e.status + "). Try again in a moment.";
+    return "Couldn't reach Dropbox. Check your connection and try again.";
+  }
+  function renderDbxStatus() { var el = document.getElementById("dbxStatus"); if (el) el.hidden = !lsGet("rsz-dbx"); }
+
+  function cleanFolderUrl(raw) {
+    var u = new URL(raw.trim()), out = new URL(u.origin + u.pathname), rk = u.searchParams.get("rlkey");
+    if (rk) out.searchParams.set("rlkey", rk);
+    return out.toString();
+  }
+  function openFolderLink(raw, fromGesture) {
+    var url;
+    try { url = cleanFolderUrl(raw); } catch (e) { linkMsg("That doesn't look like a link.", true); return; }
+    if (lsGet("rsz-dbx")) { listAndAdd(url, raw); return; }
+    if (!fromGesture) { $("linkInput").value = raw.trim(); linkMsg("Click Add to connect Dropbox and open this folder.", true, true); return; }
+    linkMsg("Sign in to Dropbox in the window that opened…", false, true);
+    connectDropbox(url).then(function () { listAndAdd(url, raw); }, function (e) { linkMsg(e.message, true); });
+  }
+
+  // List a shared folder (and up to two levels of subfolders)
+  function listShared(url, path, depth) {
+    var out = [];
+    function take(res) {
+      res.entries.forEach(function (e) { e.relPath = path + "/" + e.name; out.push(e); });
+      if (res.has_more) return dbxCall("files/list_folder/continue", { cursor: res.cursor }).then(take);
+    }
+    return dbxCall("files/list_folder", { path: path, shared_link: { url: url }, include_media_info: true })
+      .catch(function (e) {
+        if (e.status === 400 && /include_media_info/.test(e.body || "")) return dbxCall("files/list_folder", { path: path, shared_link: { url: url } });
+        throw e;
+      })
+      .then(take)
+      .then(function () {
+        var plain = out.filter(function (e) { return e[".tag"] === "file"; });
+        var subs = out.filter(function (e) { return e[".tag"] === "folder"; });
+        if (depth >= 2 || !subs.length) return plain;
+        return Promise.all(subs.map(function (sf) { return listShared(url, sf.relPath, depth + 1); }))
+          .then(function (lists) { return plain.concat.apply(plain, lists); });
+      });
+  }
+
+  function listAndAdd(url, raw) {
+    linkMsg("Reading the folder…", false, true);
+    return listShared(url, "", 0).then(function (entries) {
+      var media = entries.filter(function (e) { return IMG_EXT.test(e.name) || VID_EXT.test(e.name); })
+        .sort(function (a, b) { return a.relPath.localeCompare(b.relPath, undefined, { numeric: true }); });
+      if (!media.length) { linkMsg("No images or videos in that folder.", true); return; }
+      files.filter(function (x) { return x.example; }).forEach(function (x) { removeFile(x.id, true); });
+      var already = files.filter(function (x) { return x.dbx; }).map(function (x) { return x.dbx.url + x.dbx.path; });
+      var added = [];
+      media.forEach(function (e) {
+        if (already.indexOf(url + e.relPath) >= 0) return;
+        var mi = e.media_info && e.media_info.metadata;
+        var f = { id: nextId++, name: e.relPath.slice(1), size: e.size, kind: VID_EXT.test(e.name) ? "video" : "image", dbx: { url: url, path: e.relPath } };
+        if (mi && mi.dimensions) { f.w = mi.dimensions.width; f.h = mi.dimensions.height; }
+        if (mi && mi.duration) f.duration = mi.duration / 1000;
+        files.push(f); added.push(f);
+      });
+      renderList();
+      if (added.length) select(files.indexOf(added[0]));
+      var skipped = entries.length - media.length;
+      linkMsg("Added " + added.length + (added.length === 1 ? " file" : " files") + " from the folder" + (skipped ? ", skipped " + skipped + " other " + (skipped === 1 ? "file" : "files") : "") + ".", false);
+      fetchThumbs(added);
+    }).catch(function (e) {
+      if (e && e.auth && raw) { $("linkInput").value = raw.trim(); linkMsg("Your Dropbox sign-in has expired. Click Add to reconnect.", true, true); return; }
+      linkMsg(dbxErrorText(e), true);
+    });
+  }
+
+  function fetchThumbs(list) {
+    var q = list.slice();
+    function next() {
+      var f = q.shift(); if (!f) return;
+      dbxCall("files/get_thumbnail_v2", { resource: { ".tag": "link", url: f.dbx.url, path: f.dbx.path }, format: "jpeg", size: "w128h128", mode: "fitone_bestfit" }, { content: true })
+        .then(function (r) { return r.blob(); })
+        .then(function (b) { if (!f.thumb) { f.thumb = URL.createObjectURL(b); renderList(); } })
+        .catch(function () {}).then(next);
+    }
+    next(); next(); next();   // three at a time
+  }
+
+  var MIME = { mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", webm: "video/webm", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp", avif: "image/avif" };
+  function downloadText(f) { return "Downloading from Dropbox… " + fmtSize(f.got || 0) + (f.total ? " of " + fmtSize(f.total) : ""); }
+  function ensureDownloaded(f) {
+    if (f.url) return Promise.resolve(f);
+    if (f.loading) return f.loading;
+    f.loading = dbxCall("sharing/get_shared_link_file", { url: f.dbx.url, path: f.dbx.path }, { content: true })
+      .then(function (r) {
+        f.total = +r.headers.get("Content-Length") || f.size || 0;
+        var type = MIME[(f.name.split(".").pop() || "").toLowerCase()] || "";
+        if (!r.body || !r.body.getReader) return r.blob().then(function (b) { return new Blob([b], { type: type }); });
+        var reader = r.body.getReader(), chunks = [];
+        f.got = 0;
+        return (function pump() {
+          return reader.read().then(function (x) {
+            if (x.done) return new Blob(chunks, { type: type });
+            chunks.push(x.value); f.got += x.value.length;
+            if (files[current] === f && msgEl) msgEl.textContent = downloadText(f);
+            return pump();
+          });
+        })();
+      })
+      .then(function (blob) {
+        f.url = URL.createObjectURL(blob); f.size = blob.size; delete f.loading;
+        probe(f);   // real dimensions and length from the file itself
+        return f;
+      }, function (e) { delete f.loading; throw e; });
+    return f.loading;
+  }
+
+  // Sign-in or sign-out in another tab/window updates this one
+  window.addEventListener("storage", function (e) { if (e.key === "rsz-dbx") renderDbxStatus(); });
+
+  $("dbxSignOut").onclick = function () {
+    var t = lsGet("rsz-dbx");
+    if (t && t.access_token) fetch("https://api.dropboxapi.com/2/auth/token/revoke", { method: "POST", headers: { Authorization: "Bearer " + t.access_token } }).catch(function () {});
+    lsSet("rsz-dbx", null); renderDbxStatus(); toast("Disconnected from Dropbox.");
+  };
 
   // ---------- Dropbox Chooser ----------
   $("dbxChoose").onclick = function () {
@@ -563,9 +798,10 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
   };
 
   var linkHint = $("linkHint"), linkDefault = linkHint.textContent;
-  function linkMsg(text, isError) {
+  function linkMsg(text, isError, sticky) {
     linkHint.textContent = text; linkHint.classList.toggle("is-error", !!isError);
     clearTimeout(linkMsg.t);
+    if (sticky) return;
     linkMsg.t = setTimeout(function () { linkHint.textContent = linkDefault; linkHint.classList.remove("is-error"); }, isError ? 7000 : 2500);
   }
 
@@ -628,7 +864,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
       var main = document.createElement("span"); main.className = "file-main";
       var nm = document.createElement("span"); nm.className = "file-name"; nm.textContent = f.name; nm.title = f.name;
       var meta = document.createElement("span"); meta.className = "file-meta";
-      meta.textContent = f.example ? "Example frame" : [f.w ? f.w + "×" + f.h : null, f.duration ? fmtTime(f.duration) : null, f.remote ? (f.size != null ? fmtSize(f.size) + " · Dropbox" : "Dropbox link") : fmtSize(f.size)].filter(Boolean).join(" · ");
+      meta.textContent = f.example ? "Example frame" : [f.w ? f.w + "×" + f.h : null, f.duration ? fmtTime(f.duration) : null, (f.remote || f.dbx) ? (f.size != null ? fmtSize(f.size) + " · Dropbox" : "Dropbox link") : fmtSize(f.size)].filter(Boolean).join(" · ");
       var pill = document.createElement("span"); pill.className = "pill " + (f.example ? "ex" : a.cls); pill.textContent = f.example ? "Example" : a.pill;
       var line = document.createElement("span"); line.className = "file-line";
       line.append(pill, meta);
@@ -662,6 +898,18 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     $("shareLink").hidden = !(f && f.remote);
     $("saveFrame").disabled = !f || !!f.error;
     if (!f) { showMsg("Drop an image or video to check it."); renderChecks(); return; }
+    if (f.dbx && !f.url) {
+      $("player").hidden = true; $("saveFrame").disabled = true;
+      showMsg(f.got ? downloadText(f) : "Downloading from Dropbox…");
+      renderChecks();
+      ensureDownloaded(f).then(function () {
+        if (files[current] === f) select(current);
+      }, function (e) {
+        f.error = dbxErrorText(e); refresh(f);
+        if (files[current] === f) { clearStage(); showMsg(f.error); }
+      });
+      return;
+    }
     if (f.kind === "image") {
       mediaEl = document.createElement("img"); mediaEl.alt = f.name; mediaEl.src = f.url;
     } else {
@@ -694,7 +942,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     var rows = [["Dimensions", f.w ? f.w + " × " + f.h : "—"], ["Ratio", f.w ? ratioName(f.w, f.h) : "—"]];
     if (f.kind === "video") rows.push(["Length", f.duration ? fmtTime(f.duration) : "—"]);
     if (f.size != null) rows.push(["File size", fmtSize(f.size)]);
-    if (f.remote) rows.push(["Source", "Dropbox"]);
+    if (f.remote || f.dbx) rows.push(["Source", "Dropbox"]);
     rows.forEach(function (r) {
       var d = document.createElement("div"), dt = document.createElement("dt"), dd = document.createElement("dd");
       dt.textContent = r[0]; dd.textContent = r[1]; d.append(dt, dd); facts.appendChild(d);
@@ -865,13 +1113,13 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     }
     if (dt.files.length) { addFiles(dt.files); return; }
     var text = dt.getData("text/uri-list") || dt.getData("text/plain");
-    if (text) text.split(/\s+/).filter(function (s) { return /^https?:\/\//.test(s); }).forEach(function (l) { addLink(l); });
+    if (text) text.split(/\s+/).filter(function (s) { return /^https?:\/\//.test(s); }).forEach(function (l) { addLink(l, { gesture: true }); });
   });
   $("linkForm").addEventListener("submit", function (e) {
     e.preventDefault();
     var inp = $("linkInput");
     if (!inp.value.trim()) return linkMsg("Paste a Dropbox link first.", true);
-    if (addLink(inp.value)) inp.value = "";
+    if (addLink(inp.value, { gesture: true })) inp.value = "";
   });
   // Paste anywhere: files (e.g. a copied image) or a link
   document.addEventListener("paste", function (e) {
@@ -880,7 +1128,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     if (cd.files && cd.files.length) { e.preventDefault(); addFiles(cd.files); return; }
     var text = (cd.getData("text/plain") || "").trim();
     var links = text.split(/\s+/).filter(function (s) { return /^https?:\/\//.test(s); });
-    if (links.length) { e.preventDefault(); links.forEach(function (l) { addLink(l); }); }
+    if (links.length) { e.preventDefault(); links.forEach(function (l) { addLink(l, { gesture: true }); }); }
   });
   document.addEventListener("keydown", function (e) {
     var t = e.target.tagName;
@@ -949,6 +1197,12 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
 
     // Opened from a "Copy check link"? Load those Dropbox files instead of the example.
     window.addEventListener("hashchange", loadHashLinks);
+    renderDbxStatus();
+    if (authLanding && authLanding.pend && authLanding.pend.mode === "redirect") {
+      var folderAfter = authLanding.pend.folder;
+      finishAuth(authLanding).then(function () { if (folderAfter) listAndAdd(folderAfter); }, function (e) { linkMsg("Couldn't connect to Dropbox: " + e.message, true); });
+      return;
+    }
     if (loadHashLinks()) return;
 
     var url = makeExample();

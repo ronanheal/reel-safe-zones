@@ -4,7 +4,7 @@ A drag-and-drop checker for Instagram Reel safe zones, in the C&C style.
 
 **Open it:** https://ronanheal.github.io/reel-safe-zones/
 
-Drag images or videos (straight from Dropbox in Finder) onto the page, or paste a Dropbox share link (⌘V anywhere, or the link box). Links need Dropbox sharing set to "Anyone with the link"; folder links won't work, so copy the link for a single file. Each file gets:
+Drag images or videos (straight from Dropbox in Finder) onto the page, or paste a Dropbox share link (⌘V anywhere, or the link box). File links need Dropbox sharing set to "Anyone with the link". **Folder links** work too: the first time, a Dropbox sign-in window opens (once per browser), then every image and video in the folder (and up to two levels of subfolders) is listed. Each file downloads when you open it, so Save frame works for those as well. **Disconnect** under the link box signs out. Each file gets:
 
 - the red safe-zone overlay on top (Zones / Outline / Off, adjustable opacity)
 - a 9:16 check, with a low-resolution warning under 1080 × 1920
@@ -29,3 +29,13 @@ Files are read by the browser and are never uploaded anywhere.
 ## Updating
 
 It's one static page (`index.html`) served by GitHub Pages. Edit it, push to `main`, and the live link updates within a minute or two.
+
+## Dropbox app settings
+
+App "C&C Reel Safe Zones", key `tymn65ngvtkr7i8`.
+
+- Chooser domain: `ronanheal.github.io`
+- Redirect URI: `https://ronanheal.github.io/reel-safe-zones/`
+- Permissions: `sharing.read`, `files.metadata.read`, `files.content.read`
+
+Sign-in uses OAuth with PKCE, so there is no app secret in the page. Tokens are kept in each person's browser only.
