@@ -75,8 +75,10 @@ h1{font:700 19px/1.1 var(--display);letter-spacing:-.015em;margin:0}
   .checks .rows div{padding:7px 0}
   .shortcuts{gap:5px 12px}
   .center{min-height:0;height:100%}
-  .phone{flex:1 1 0;min-height:0;display:flex}
-  .stage{height:100%;width:auto}
+  /* The phone area takes the height left over; the phone is sized from that box with
+     container units (works the same in Safari, Chrome and Firefox). 18px = phone bezel. */
+  .phone-area{flex:1 1 0;min-height:0;width:100%;container-type:size;display:grid;place-items:end center}
+  .stage{width:auto;height:min(calc(100cqh - 18px),calc((100cqw - 18px) * 16 / 9))}
 }
 @media (min-width:1081px) and (max-height:820px){
   .checks .note{display:none}
@@ -298,6 +300,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
 
   <!-- Preview -->
   <section class="center" aria-label="Preview">
+    <div class="phone-area">
     <div class="phone">
       <div class="stage" id="stage">
         <svg id="overlay" viewBox="0 0 1080 1920" preserveAspectRatio="none" aria-hidden="true">
@@ -314,6 +317,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
             d="M49.92 226.56H1030.08V919.68H889.92V1596.48H49.92Z"/>
         </svg>
       </div>
+    </div>
     </div>
 
     <div class="card dock">
