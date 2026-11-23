@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Reel safe zones · C&amp;C</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
+<!-- Dropbox Chooser: opens Dropbox's own file picker. App key is public by design;
+     the app only allows this domain (set in the Dropbox app console). -->
+<script async src="https://www.dropbox.com/static/api/2/dropins.js" id="dropboxjs" data-app-key="tymn65ngvtkr7i8"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500..800&display=swap" rel="stylesheet">
@@ -79,6 +82,9 @@ body.dragging .drop{border-color:var(--red);background:var(--red-wash)}
 .drop input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .drop:focus-within{box-shadow:var(--ring)}
 
+.dbx-btn{display:flex;align-items:center;justify-content:center;gap:8px;height:38px;width:100%;border-radius:var(--r-ctl);border:1px solid var(--ink);background:var(--ink);color:var(--white);font:600 13px/1 var(--font);margin-top:-4px;transition:opacity var(--t-fast),transform var(--t-fast)}
+.dbx-btn:hover{opacity:.88}
+.dbx-btn:active{transform:scale(.98)}
 .link-form{margin:0;display:flex;flex-direction:column}
 .link-row{display:flex;gap:6px}
 .link-row input{flex:1;min-width:0;height:var(--ctl-h);padding:0 11px;border-radius:var(--r-ctl);border:1px solid var(--border);background:var(--white);font-size:12.5px;transition:border-color var(--t-fast)}
@@ -251,6 +257,10 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
       <input id="folderPicker" class="vh" type="file" webkitdirectory multiple>
       <button type="button" class="text-btn quiet" id="clearAll" hidden>Clear all</button>
     </div>
+    <button type="button" class="dbx-btn" id="dbxChoose">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 10v6"/><path d="M9 13h6"/></svg>
+      Choose from Dropbox
+    </button>
     <form class="link-form" id="linkForm" novalidate>
       <label class="eyebrow" for="linkInput">Or paste a Dropbox link</label>
       <div class="link-row">
@@ -494,18 +504,43 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     return { url: u.toString(), name: name };
   }
 
-  function addLink(raw) {
+  function addLink(raw, meta) {
+    meta = meta || {};
     var r = resolveLink(raw);
+    if (meta.name) r.name = meta.name;
     if (r.error) return linkMsg(r.error, true), false;
     var kind = IMG_EXT.test(r.name) ? "image" : VID_EXT.test(r.name) ? "video" : null;
     if (!kind) return linkMsg("Can't tell if that's an image or a video. Links to JPG, PNG, MP4 or MOV files work.", true), false;
-    var f = { id: nextId++, name: r.name, size: null, kind: kind, url: r.url, remote: true, source: raw.trim() };
+    var f = { id: nextId++, name: r.name, size: meta.size != null ? meta.size : null, kind: kind, url: r.url, remote: true, source: raw.trim(), thumb: meta.thumb };
     files.filter(function (x) { return x.example; }).forEach(function (x) { removeFile(x.id, true); });
     files.push(f); probe(f);
-    renderList(); select(files.indexOf(f));
-    linkMsg("Added " + r.name + ".", false);
-    return true;
+    renderList();
+    if (!meta.quiet) { select(files.indexOf(f)); linkMsg("Added " + r.name + ".", false); }
+    return f;
   }
+
+  // ---------- Dropbox Chooser ----------
+  $("dbxChoose").onclick = function () {
+    var D = window.Dropbox;
+    if (!D || !D.choose) { toast("Dropbox is still loading. Try again in a second."); return; }
+    if (D.isBrowserSupported && !D.isBrowserSupported()) { toast("This browser can't open the Dropbox picker. Paste a link instead."); return; }
+    D.choose({
+      linkType: "preview",          // normal share links, so "Copy check link" keeps working
+      multiselect: true,
+      extensions: [".mp4", ".mov", ".m4v", ".webm", ".jpg", ".jpeg", ".png", ".gif", ".webp"],
+      success: function (picked) {
+        var firstNew = null;
+        picked.sort(function (a, b) { return a.name.localeCompare(b.name, undefined, { numeric: true }); })
+          .forEach(function (p) {
+            var thumb = p.thumbnailLink ? p.thumbnailLink.replace(/([?&]bounding_box=)\d+/, "$1256") : undefined;
+            var f = addLink(p.link, { name: p.name, size: p.bytes, thumb: thumb, quiet: true });
+            if (f && !firstNew) firstNew = f;
+          });
+        if (firstNew) select(files.indexOf(firstNew));
+        toast("Added " + picked.length + (picked.length === 1 ? " file" : " files") + " from Dropbox.");
+      }
+    });
+  };
 
   var linkHint = $("linkHint"), linkDefault = linkHint.textContent;
   function linkMsg(text, isError) {
@@ -573,7 +608,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
       var main = document.createElement("span"); main.className = "file-main";
       var nm = document.createElement("span"); nm.className = "file-name"; nm.textContent = f.name; nm.title = f.name;
       var meta = document.createElement("span"); meta.className = "file-meta";
-      meta.textContent = f.example ? "Example frame" : [f.w ? f.w + "×" + f.h : null, f.duration ? fmtTime(f.duration) : null, f.remote ? "Dropbox link" : fmtSize(f.size)].filter(Boolean).join(" · ");
+      meta.textContent = f.example ? "Example frame" : [f.w ? f.w + "×" + f.h : null, f.duration ? fmtTime(f.duration) : null, f.remote ? (f.size != null ? fmtSize(f.size) + " · Dropbox" : "Dropbox link") : fmtSize(f.size)].filter(Boolean).join(" · ");
       var pill = document.createElement("span"); pill.className = "pill " + (f.example ? "ex" : a.cls); pill.textContent = f.example ? "Example" : a.pill;
       var line = document.createElement("span"); line.className = "file-line";
       line.append(pill, meta);
@@ -638,7 +673,8 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     v.innerHTML = ICON[a.cls] + "<span></span>"; v.lastChild.textContent = a.text;
     var rows = [["Dimensions", f.w ? f.w + " × " + f.h : "—"], ["Ratio", f.w ? ratioName(f.w, f.h) : "—"]];
     if (f.kind === "video") rows.push(["Length", f.duration ? fmtTime(f.duration) : "—"]);
-    rows.push(f.remote ? ["Source", "Dropbox link"] : ["File size", fmtSize(f.size)]);
+    if (f.size != null) rows.push(["File size", fmtSize(f.size)]);
+    if (f.remote) rows.push(["Source", "Dropbox"]);
     rows.forEach(function (r) {
       var d = document.createElement("div"), dt = document.createElement("dt"), dd = document.createElement("dd");
       dt.textContent = r[0]; dd.textContent = r[1]; d.append(dt, dd); facts.appendChild(d);
@@ -805,7 +841,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     }
     if (dt.files.length) { addFiles(dt.files); return; }
     var text = dt.getData("text/uri-list") || dt.getData("text/plain");
-    if (text) text.split(/\s+/).filter(function (s) { return /^https?:\/\//.test(s); }).forEach(addLink);
+    if (text) text.split(/\s+/).filter(function (s) { return /^https?:\/\//.test(s); }).forEach(function (l) { addLink(l); });
   });
   $("linkForm").addEventListener("submit", function (e) {
     e.preventDefault();
@@ -820,7 +856,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     if (cd.files && cd.files.length) { e.preventDefault(); addFiles(cd.files); return; }
     var text = (cd.getData("text/plain") || "").trim();
     var links = text.split(/\s+/).filter(function (s) { return /^https?:\/\//.test(s); });
-    if (links.length) { e.preventDefault(); links.forEach(addLink); }
+    if (links.length) { e.preventDefault(); links.forEach(function (l) { addLink(l); }); }
   });
   document.addEventListener("keydown", function (e) {
     var t = e.target.tagName;
@@ -858,7 +894,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
       try { return decodeURIComponent(p.replace(/^&?link=/, "")); } catch (e) { return ""; }
     }).filter(Boolean);
     var have = files.map(function (f) { return f.source; });
-    links.filter(function (l) { return have.indexOf(l) < 0; }).forEach(addLink);
+    links.filter(function (l) { return have.indexOf(l) < 0; }).forEach(function (l) { addLink(l); });
     return links.length;
   }
   function boot() {

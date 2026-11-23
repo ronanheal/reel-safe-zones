@@ -13,7 +13,7 @@ Drag images or videos (straight from Dropbox in Finder) onto the page, or paste 
 - **Save frame**: downloads the current frame with the overlay as a PNG (dropped files only)
 - **Copy check link** (Dropbox links): a link that opens the checker with that file loaded
 
-You can also drop a whole folder, or use **Select a folder**. Overlay, opacity, mute and speed are remembered in each browser.
+You can also drop a whole folder, use **Select a folder**, or click **Choose from Dropbox** to pick files (several at once) straight from Dropbox. The picker uses the Dropbox app "C&C Reel Safe Zones" (app key in `index.html`; allowed domain `ronanheal.github.io`). Overlay, opacity, mute and speed are remembered in each browser.
 
 Files are read by the browser and are never uploaded anywhere.
 
