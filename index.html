@@ -28,7 +28,7 @@
   --screen:#0E0D0B;
   --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   --display:'Inter Tight','Inter',-apple-system,sans-serif;
-  --r-sm:8px; --r-ctl:10px; --r-card:18px; --r-pill:999px;
+  --r-sm:6px; --r-ctl:8px; --r-card:12px; --r-pill:999px;
   --gap:14px; --ctl-h:34px;
   --e-1:0 1px 1px rgba(46,36,20,.04),0 1px 3px rgba(46,36,20,.05);
   --e-2:0 1px 2px rgba(46,36,20,.05),0 6px 16px rgba(46,36,20,.08);
@@ -74,11 +74,12 @@ h1{font:700 19px/1.1 var(--display);letter-spacing:-.015em;margin:0}
   .checks{align-self:start;max-height:100%;overflow:auto;gap:16px;padding:16px}
   .checks .rows div{padding:7px 0}
   .shortcuts{gap:5px 12px}
-  .center{min-height:0;height:100%}
+  .center{min-height:0;height:100%;justify-content:center}
   /* The phone area takes the height left over; the phone is sized from that box with
      container units (works the same in Safari, Chrome and Firefox). 18px = phone bezel. */
-  .phone-area{flex:1 1 0;min-height:0;width:100%;container-type:size;display:grid;place-items:end center}
-  .stage{width:auto;height:min(calc(100cqh - 18px),calc((100cqw - 18px) * 16 / 9))}
+  .phone-area{flex:none;display:flex;justify-content:center;width:100%}
+  /* Height is set by fitPhone() from the space actually left; this is only the first-paint guess */
+  .stage{width:auto;height:calc(100vh - 230px)}
 }
 @media (min-width:1081px) and (max-height:820px){
   .checks .note{display:none}
@@ -94,7 +95,7 @@ h1{font:700 19px/1.1 var(--display);letter-spacing:-.015em;margin:0}
 /* ---------- files ---------- */
 .files{padding:14px;display:flex;flex-direction:column;gap:16px;min-width:0}
 .drop{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;
-  padding:22px 14px;border-radius:14px;background:var(--surface-2);
+  padding:22px 14px;border-radius:10px;background:var(--surface-2);
   border:1.5px dashed var(--border-strong);cursor:pointer;
   transition:background var(--t-med) var(--ease),border-color var(--t-med) var(--ease)}
 .drop:hover{border-color:var(--ink-2)}
@@ -128,7 +129,7 @@ body.dragging .drop{border-color:var(--red);background:var(--red-wash)}
 .thumb.is-link{display:grid;place-items:center;color:var(--muted)}
 .filelist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
 .file{display:grid;grid-template-columns:30px minmax(0,1fr) auto;align-items:center;gap:10px;
-  padding:6px 6px 6px 6px;border-radius:12px;cursor:pointer;position:relative;
+  padding:6px 6px 6px 6px;border-radius:8px;cursor:pointer;position:relative;
   transition:background var(--t-fast) var(--ease)}
 .file:hover{background:var(--fill-2)}
 .file[aria-current="true"]{background:var(--fill)}
@@ -155,8 +156,9 @@ body.dragging .drop{border-color:var(--red);background:var(--red-wash)}
 
 /* ---------- stage ---------- */
 .center{display:flex;flex-direction:column;align-items:center;gap:14px;min-width:0}
-.phone{padding:9px;border-radius:34px;background:#1C1A16;box-shadow:var(--e-3);max-width:100%}
-.stage{position:relative;overflow:hidden;background:var(--screen);border-radius:26px;
+.phone-area{display:flex;justify-content:center;width:100%}
+.phone{padding:9px;border-radius:22px;background:#1C1A16;box-shadow:var(--e-3);max-width:100%}
+.stage{position:relative;overflow:hidden;background:var(--screen);border-radius:14px;
   aspect-ratio:9/16;height:clamp(420px,calc(100vh - 250px),780px);max-width:100%}
 @media (max-width:720px){.phone{width:100%}.stage{height:auto;width:100%}}
 .stage img,.stage video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
@@ -211,7 +213,7 @@ input[type=range]:focus-visible::-webkit-slider-thumb{box-shadow:var(--ring),0 1
 .ghost-btn:disabled{opacity:.45;cursor:default;transform:none}
 
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:20;
-  max-width:min(440px,calc(100vw - 32px));padding:11px 16px;border-radius:14px;background:var(--ink);color:var(--white);
+  max-width:min(440px,calc(100vw - 32px));padding:11px 16px;border-radius:10px;background:var(--ink);color:var(--white);
   font-size:13px;font-weight:500;box-shadow:var(--e-3);animation:toast-in var(--t-med) var(--ease)}
 @keyframes toast-in{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}
 .icon-btn{width:var(--ctl-h);height:var(--ctl-h);border-radius:50%;border:0;background:none;color:var(--ink-2);display:grid;place-items:center;transition:background var(--t-fast),color var(--t-fast),transform var(--t-fast)}
@@ -227,7 +229,7 @@ input[type=range]:focus-visible::-webkit-slider-thumb{box-shadow:var(--ring),0 1
 .checks{padding:18px;display:flex;flex-direction:column;gap:20px;min-width:0}
 .fname{font:700 16px/1.25 var(--display);letter-spacing:-.01em;margin:0;overflow-wrap:anywhere}
 .fsub{margin:4px 0 0;color:var(--muted);font-size:12px}
-.verdict{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:12px;font-weight:500;font-size:13px;line-height:1.45}
+.verdict{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:8px;font-weight:500;font-size:13px;line-height:1.45}
 .verdict svg{flex:none;margin-top:1px}
 .verdict.ok{background:var(--ok-bg);color:var(--ok-ink)}
 .verdict.bad{background:var(--danger-bg);color:var(--danger-ink)}
@@ -893,6 +895,24 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     else if (k === "ArrowDown" && files.length) { e.preventDefault(); select(Math.min(files.length - 1, current + 1)); }
     else if (k === "ArrowUp" && files.length) { e.preventDefault(); select(Math.max(0, current - 1)); }
   });
+
+  // ---------- size the phone to the space left in the middle column (desktop) ----------
+  var wide = window.matchMedia("(min-width:1081px) and (min-height:560px)");
+  var centerEl = document.querySelector(".center"), dockEl = document.querySelector(".dock");
+  function fitPhone() {
+    if (!wide.matches) { stage.style.height = ""; return; }
+    var cs = getComputedStyle(centerEl), gap = parseFloat(cs.rowGap) || 14;
+    var availH = centerEl.clientHeight - dockEl.offsetHeight - gap - 18;   // 18 = phone bezel
+    var byWidth = (centerEl.clientWidth - 18) * 16 / 9;
+    stage.style.height = Math.max(240, Math.floor(Math.min(availH, byWidth))) + "px";
+  }
+  // Measure after layout has settled (a resize across the desktop breakpoint changes the layout first)
+  var fitQueued = false;
+  function queueFit() { if (fitQueued) return; fitQueued = true; requestAnimationFrame(function () { fitQueued = false; fitPhone(); }); }
+  if (window.ResizeObserver) { var ro = new ResizeObserver(queueFit); ro.observe(centerEl); ro.observe(dockEl); }
+  window.addEventListener("resize", queueFit);
+  if (wide.addEventListener) wide.addEventListener("change", queueFit);
+  fitPhone();
 
   // ---------- example frame so the page opens in a working state ----------
   function makeExample() {
