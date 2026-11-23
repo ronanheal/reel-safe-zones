@@ -8,7 +8,12 @@ Drag images or videos (straight from Dropbox in Finder) onto the page, or paste 
 
 - the red safe-zone overlay on top (Zones / Outline / Off, adjustable opacity)
 - a 9:16 check, with a low-resolution warning under 1080 × 1920
-- a player for video: scrub, frame-step, mute
+- a player for video: scrub, frame-step, mute, ½× and ¼× speed
+- a warning for videos over 3 minutes
+- **Save frame**: downloads the current frame with the overlay as a PNG (dropped files only)
+- **Copy check link** (Dropbox links): a link that opens the checker with that file loaded
+
+You can also drop a whole folder, or use **Select a folder**. Overlay, opacity, mute and speed are remembered in each browser.
 
 Files are read by the browser and are never uploaded anywhere.
 

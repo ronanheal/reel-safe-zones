@@ -162,7 +162,29 @@ input[type=range]:focus-visible::-webkit-slider-thumb{box-shadow:var(--ring),0 1
 .transport{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:6px}
 .transport .mid{display:flex;align-items:center;gap:6px}
 .transport #mute{justify-self:start}
-.transport .frame-lbl{justify-self:end;font-variant-numeric:tabular-nums;min-width:6ch;text-align:right}
+.transport .right{justify-self:end;display:flex;align-items:center;gap:8px}
+.transport .frame-lbl{font-variant-numeric:tabular-nums;min-width:6ch;text-align:right}
+.speed{height:24px;min-width:42px;padding:0 8px;border:0;border-radius:var(--r-pill);background:var(--fill-2);font:600 11.5px/1 var(--display);font-variant-numeric:tabular-nums;color:var(--ink-2);transition:background var(--t-fast)}
+.speed:hover{background:var(--fill)}
+.speed.is-slow{background:var(--red-wash);color:var(--red-ink)}
+
+.vh{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.folder-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:-6px}
+.text-btn{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;margin-left:-4px;border:0;border-radius:var(--r-pill);background:none;font:600 12.5px/1 var(--font);color:var(--ink-2);cursor:pointer;transition:background var(--t-fast),color var(--t-fast)}
+.text-btn:hover{background:var(--fill-2);color:var(--ink)}
+.text-btn.quiet{color:var(--muted);font-weight:500;margin:0 -4px 0 0}
+.folder-row:focus-within label{box-shadow:var(--ring)}
+
+.actions{display:flex;gap:8px;flex-wrap:wrap;padding-top:12px;border-top:1px solid var(--faint)}
+.ghost-btn{display:inline-flex;align-items:center;gap:7px;height:var(--ctl-h);padding:0 14px;border-radius:var(--r-ctl);border:1px solid var(--border);background:var(--white);font:600 12.5px/1 var(--font);color:var(--ink-2);transition:border-color var(--t-fast),color var(--t-fast),transform var(--t-fast)}
+.ghost-btn:hover{border-color:var(--border-strong);color:var(--ink)}
+.ghost-btn:active{transform:scale(.97)}
+.ghost-btn:disabled{opacity:.45;cursor:default;transform:none}
+
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:20;
+  max-width:min(440px,calc(100vw - 32px));padding:11px 16px;border-radius:14px;background:var(--ink);color:var(--white);
+  font-size:13px;font-weight:500;box-shadow:var(--e-3);animation:toast-in var(--t-med) var(--ease)}
+@keyframes toast-in{from{opacity:0;transform:translate(-50%,8px)}to{opacity:1;transform:translate(-50%,0)}}
 .icon-btn{width:var(--ctl-h);height:var(--ctl-h);border-radius:50%;border:0;background:none;color:var(--ink-2);display:grid;place-items:center;transition:background var(--t-fast),color var(--t-fast),transform var(--t-fast)}
 .icon-btn:hover{background:var(--fill);color:var(--ink)}
 .icon-btn:active{transform:scale(.94)}
@@ -217,10 +239,18 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
       <span class="drop-icon" aria-hidden="true">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4"/><path d="m7 9 5-5 5 5"/><path d="M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"/></svg>
       </span>
-      <strong>Drop files from Dropbox</strong>
-      <span>or click to choose · JPG, PNG, MP4, MOV</span>
+      <strong>Drop or select files</strong>
+      <span>JPG, PNG, MP4, MOV, or a whole folder</span>
       <input id="picker" type="file" accept="image/*,video/*" multiple>
     </label>
+    <div class="folder-row">
+      <label class="text-btn" for="folderPicker">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+        Select a folder
+      </label>
+      <input id="folderPicker" class="vh" type="file" webkitdirectory multiple>
+      <button type="button" class="text-btn quiet" id="clearAll" hidden>Clear all</button>
+    </div>
     <form class="link-form" id="linkForm" novalidate>
       <label class="eyebrow" for="linkInput">Or paste a Dropbox link</label>
       <div class="link-row">
@@ -291,8 +321,22 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="16.6" y="5" width="2.4" height="14" rx="1"/><path d="M5 6.2v11.6a1 1 0 0 0 1.5.86l7.9-5.36a1.5 1.5 0 0 0 0-2.6L6.5 5.34A1 1 0 0 0 5 6.2z"/></svg>
           </button>
           </span>
-          <span class="frame-lbl" id="frameLbl" title="Frame at 30 fps">F 0</span>
+          <span class="right">
+            <button type="button" class="speed" id="speed" title="Playback speed (S)" aria-label="Playback speed 1×">1×</button>
+            <span class="frame-lbl" id="frameLbl" title="Frame at 30 fps">F 0</span>
+          </span>
         </div>
+      </div>
+
+      <div class="actions">
+        <button type="button" class="ghost-btn" id="saveFrame" title="Save this frame with the overlay as a PNG">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>
+          Save frame
+        </button>
+        <button type="button" class="ghost-btn" id="shareLink" hidden title="Copy a link that opens this file in the checker">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.66 0l3-3a4 4 0 0 0-5.66-5.66l-1 1"/><path d="M14 10a4 4 0 0 0-5.66 0l-3 3a4 4 0 0 0 5.66 5.66l1-1"/></svg>
+          Copy check link
+        </button>
       </div>
     </div>
   </section>
@@ -330,12 +374,14 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
         <kbd>Space</kbd><span>Play / pause</span>
         <kbd>← →</kbd><span>Step one frame</span>
         <kbd>M</kbd><span>Mute</span>
+        <kbd>S</kbd><span>Speed: 1×, ½×, ¼×</span>
         <kbd>↑ ↓</kbd><span>Previous / next file</span>
       </div>
     </div>
     <p class="note">Keep text, logos and faces out of the red. Frame steps assume 30 fps.</p>
   </aside>
 </main>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <script>
 (function () {
@@ -377,19 +423,22 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     if (!f.w) return { cls: "warn", pill: "Reading", text: "Reading file…" };
     var isReel = Math.abs((f.w / f.h) / REEL - 1) < 0.01;
     if (!isReel) return { cls: "bad", pill: "Not 9:16", text: "This is " + ratioName(f.w, f.h) + ", not 9:16. Instagram will crop or letterbox it. Re-export at 1080 × 1920." };
+    if (f.duration > 180.5) return { cls: "warn", pill: "Over 3 min", text: "9:16, but " + fmtTime(f.duration).replace(/\.\d$/, "") + " long. Reels can be up to 3 minutes, so trim it." };
     if (f.w < 1080) return { cls: "warn", pill: "Low res", text: "9:16, but smaller than 1080 × 1920, so it may look soft on phones." };
     return { cls: "ok", pill: "9:16", text: "Right size. Now check text, logos and faces stay out of the red." };
   }
 
   // ---------- adding files ----------
-  function addFiles(fileList) {
-    var added = [];
-    Array.prototype.forEach.call(fileList, function (file) {
+  function addFiles(fileList, fromFolder) {
+    var added = [], skipped = 0;
+    var arr = Array.prototype.slice.call(fileList).filter(function (file) { return file.name.charAt(0) !== "."; });
+    if (fromFolder) arr.sort(function (a, b) { return a.name.localeCompare(b.name, undefined, { numeric: true }); });
+    arr.forEach(function (file) {
       var kind = file.type.indexOf("video/") === 0 ? "video"
                : file.type.indexOf("image/") === 0 ? "image"
                : /\.(mp4|mov|m4v|webm)$/i.test(file.name) ? "video"
                : /\.(jpe?g|png|gif|webp|avif)$/i.test(file.name) ? "image" : null;
-      if (!kind) return;
+      if (!kind) { skipped++; return; }
       var f = { id: nextId++, name: file.name, size: file.size, kind: kind, url: URL.createObjectURL(file) };
       files.push(f); added.push(f);
       probe(f);
@@ -399,6 +448,29 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
       renderList();
       select(files.indexOf(added[0]));
     }
+    if (fromFolder || skipped) {
+      var msg = added.length ? "Added " + added.length + (added.length === 1 ? " file" : " files") : "No images or videos found";
+      if (skipped) msg += ", skipped " + skipped + " that " + (skipped === 1 ? "isn't an image or video" : "aren't images or videos");
+      toast(msg + ".");
+    }
+  }
+
+  // Folder drops: walk directories (Chrome, Safari, Edge, Firefox all support webkitGetAsEntry)
+  function readEntries(entry) {
+    return new Promise(function (resolve) {
+      if (entry.isFile) { entry.file(function (f) { resolve([f]); }, function () { resolve([]); }); return; }
+      if (!entry.isDirectory) { resolve([]); return; }
+      var reader = entry.createReader(), all = [];
+      (function batch() {
+        reader.readEntries(function (ents) {
+          if (!ents.length) {
+            Promise.all(all.map(readEntries)).then(function (lists) { resolve([].concat.apply([], lists)); });
+            return;
+          }
+          all = all.concat(ents); batch();
+        }, function () { resolve([]); });
+      })();
+    });
   }
 
   // ---------- links ----------
@@ -427,7 +499,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     if (r.error) return linkMsg(r.error, true), false;
     var kind = IMG_EXT.test(r.name) ? "image" : VID_EXT.test(r.name) ? "video" : null;
     if (!kind) return linkMsg("Can't tell if that's an image or a video. Links to JPG, PNG, MP4 or MOV files work.", true), false;
-    var f = { id: nextId++, name: r.name, size: null, kind: kind, url: r.url, remote: true };
+    var f = { id: nextId++, name: r.name, size: null, kind: kind, url: r.url, remote: true, source: raw.trim() };
     files.filter(function (x) { return x.example; }).forEach(function (x) { removeFile(x.id, true); });
     files.push(f); probe(f);
     renderList(); select(files.indexOf(f));
@@ -483,6 +555,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
   // ---------- rendering ----------
   function renderList() {
     list.innerHTML = "";
+    $("clearAll").hidden = !files.some(function (f) { return !f.example; });
     if (!files.length) {
       var e = document.createElement("li"); e.className = "empty"; e.textContent = "Nothing here yet. Drop a file above.";
       list.appendChild(e); return;
@@ -531,6 +604,8 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     renderList();
     var f = files[i];
     $("player").hidden = !(f && f.kind === "video");
+    $("shareLink").hidden = !(f && f.remote);
+    $("saveFrame").disabled = !f || !!f.error;
     if (!f) { showMsg("Drop an image or video to check it."); renderChecks(); return; }
     if (f.kind === "image") {
       mediaEl = document.createElement("img"); mediaEl.alt = f.name; mediaEl.src = f.url;
@@ -538,6 +613,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
       mediaEl = document.createElement("video");
       mediaEl.src = f.url; mediaEl.playsInline = true; mediaEl.loop = true; mediaEl.preload = "auto";
       mediaEl.muted = muted;
+      mediaEl.playbackRate = SPEEDS[speedIdx];
       ["timeupdate", "loadedmetadata", "seeked"].forEach(function (ev) { mediaEl.addEventListener(ev, syncTime); });
       mediaEl.addEventListener("play", syncPlay);
       mediaEl.addEventListener("pause", syncPlay);
@@ -570,19 +646,36 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
   }
 
   // ---------- overlay ----------
+  // Settings remembered per browser (overlay mode, opacity, mute, speed)
+  var SPEEDS = [1, 0.5, 0.25], speedIdx = 0, muted = false;
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem("rsz-settings") || "{}") || {}; } catch (e) { saved = {}; }
+  function save() {
+    try { localStorage.setItem("rsz-settings", JSON.stringify({ mode: mode, opacity: +op.value, muted: muted, speedIdx: speedIdx })); } catch (e) {}
+  }
+
   function setMode(m) {
     mode = m;
     ["zones", "outline", "off"].forEach(function (k) { $("mode-" + k).setAttribute("aria-pressed", k === m ? "true" : "false"); });
     $("zones-fill").style.opacity = m === "zones" ? 1 : 0;
     $("zones-outline").style.opacity = m === "off" ? 0 : 1;
+    save();
   }
   ["zones", "outline", "off"].forEach(function (k) { $("mode-" + k).onclick = function () { setMode(k); }; });
   var op = $("opacity");
-  op.oninput = function () { $("zones-path").setAttribute("fill-opacity", op.value / 100); $("opacityOut").textContent = op.value + "%"; setFill(op); };
-  setFill(op);
+  function applyOpacity() { $("zones-path").setAttribute("fill-opacity", op.value / 100); $("opacityOut").textContent = op.value + "%"; setFill(op); }
+  op.oninput = function () { applyOpacity(); save(); };
+
+  // ---------- toast ----------
+  function toast(text) {
+    var t = $("toast"); t.textContent = text; t.hidden = false;
+    t.style.animation = "none"; void t.offsetWidth; t.style.animation = "";
+    clearTimeout(toast.t); toast.t = setTimeout(function () { t.hidden = true; }, 3200);
+  }
 
   // ---------- video ----------
-  var muted = false;
+  // SVG elements have no .hidden property, so toggle the attribute itself.
+  function show(el, on) { if (on) el.removeAttribute("hidden"); else el.setAttribute("hidden", ""); }
   function isVideo() { return mediaEl && mediaEl.tagName === "VIDEO"; }
   function syncTime() {
     if (!isVideo()) return;
@@ -594,7 +687,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
   }
   function syncPlay() {
     var playing = isVideo() && !mediaEl.paused;
-    $("icoPlay").hidden = playing; $("icoPause").hidden = !playing;
+    show($("icoPlay"), !playing); show($("icoPause"), playing);
     $("play").setAttribute("aria-label", playing ? "Pause" : "Play");
   }
   function togglePlay() { if (isVideo()) { mediaEl.paused ? mediaEl.play().catch(function () {}) : mediaEl.pause(); } }
@@ -604,12 +697,21 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     var d = isFinite(mediaEl.duration) ? mediaEl.duration : 0;
     mediaEl.currentTime = Math.max(0, Math.min(d, mediaEl.currentTime + n / FPS));
   }
-  function toggleMute() {
-    muted = !muted; if (isVideo()) mediaEl.muted = muted;
-    $("icoVol").hidden = muted; $("icoMute").hidden = !muted;
+  function applyMute() {
+    if (isVideo()) mediaEl.muted = muted;
+    show($("icoVol"), !muted); show($("icoMute"), muted);
     $("mute").classList.toggle("is-off", muted);
     $("mute").setAttribute("aria-label", muted ? "Unmute" : "Mute");
   }
+  function toggleMute() { muted = !muted; applyMute(); save(); }
+  function applySpeed() {
+    var s = SPEEDS[speedIdx], b = $("speed");
+    b.textContent = s + "×"; b.setAttribute("aria-label", "Playback speed " + s + "×");
+    b.classList.toggle("is-slow", s !== 1);
+    if (isVideo()) mediaEl.playbackRate = s;
+  }
+  function cycleSpeed() { speedIdx = (speedIdx + 1) % SPEEDS.length; applySpeed(); save(); }
+  $("speed").onclick = cycleSpeed;
   $("play").onclick = togglePlay;
   $("back").onclick = function () { step(-1); };
   $("fwd").onclick = function () { step(1); };
@@ -624,6 +726,67 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
 
   // ---------- input ----------
   $("picker").onchange = function () { addFiles(this.files); this.value = ""; };
+  $("folderPicker").onchange = function () { addFiles(this.files, true); this.value = ""; };
+  $("clearAll").onclick = function () {
+    files.slice().forEach(function (f) { removeFile(f.id, true); });
+    renderList(); select(-1);
+    try { history.replaceState(null, "", location.pathname); } catch (e) {}
+  };
+
+  // ---------- save frame as PNG (media + current overlay) ----------
+  var SAFE = new Path2D("M49.92 226.56H1030.08V919.68H889.92V1596.48H49.92Z");
+  var UNSAFE = new Path2D("M0 0H1080V1920H0Z M49.92 226.56H1030.08V919.68H889.92V1596.48H49.92Z");
+  function saveFrame() {
+    var f = files[current];
+    if (!f || !mediaEl || f.error) return;
+    var isReel = f.w && Math.abs((f.w / f.h) / REEL - 1) < 0.01;
+    var W = isReel && f.w >= 720 ? f.w : 1080, H = Math.round(W * 16 / 9);
+    var c = document.createElement("canvas"); c.width = W; c.height = H;
+    var g = c.getContext("2d");
+    g.fillStyle = "#000"; g.fillRect(0, 0, W, H);
+    var mw = f.w || W, mh = f.h || H, s = Math.min(W / mw, H / mh);
+    g.drawImage(mediaEl, (W - mw * s) / 2, (H - mh * s) / 2, mw * s, mh * s);
+    g.save(); g.scale(W / 1080, H / 1920);
+    if (mode === "zones") {
+      g.globalAlpha = op.value / 100; g.fillStyle = "#ED1E24"; g.fill(UNSAFE, "evenodd"); g.globalAlpha = .9;
+      g.fillStyle = "#fff"; g.font = "600 30px Inter, sans-serif"; g.textAlign = "center"; g.textBaseline = "alphabetic";
+      g.fillText("Profile, tabs & camera", 540, 125); g.fillText("Caption, username & audio", 470, 1770);
+      g.save(); g.translate(985, 1258); g.rotate(Math.PI / 2); g.fillText("Like · comment · share", 0, 0); g.restore();
+      g.globalAlpha = 1;
+    }
+    if (mode !== "off") { g.strokeStyle = "#fff"; g.lineWidth = 3; g.setLineDash([14, 10]); g.stroke(SAFE); }
+    g.restore();
+    var base = f.name.replace(/\.[^.]+$/, "");
+    var suffix = isVideo() ? "-F" + Math.round(mediaEl.currentTime * FPS) : "";
+    try {
+      c.toBlob(function (blob) {
+        if (!blob) { toast("Couldn't save this frame."); return; }
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob); a.download = base + "-safe-zones" + suffix + ".png";
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+        toast("Saved " + a.download);
+      }, "image/png");
+    } catch (e) {
+      toast("Frames can't be saved from links. Drag the file in from Finder to save a frame.");
+    }
+  }
+  $("saveFrame").onclick = saveFrame;
+
+  // ---------- shareable check link (Dropbox files only) ----------
+  function shareUrl(f) { return location.origin + location.pathname + "#link=" + encodeURIComponent(f.source); }
+  $("shareLink").onclick = function () {
+    var f = files[current]; if (!f || !f.remote) return;
+    var url = shareUrl(f);
+    var done = function () { toast("Link copied. It opens this file with the safe zones on."); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(done, function () { fallbackCopy(url) ? done() : toast(url); });
+    } else { fallbackCopy(url) ? done() : toast(url); }
+  };
+  function fallbackCopy(text) {
+    var t = document.createElement("textarea"); t.value = text; t.className = "vh"; document.body.appendChild(t);
+    t.select(); var ok = false; try { ok = document.execCommand("copy"); } catch (e) {} t.remove(); return ok;
+  }
   var depth = 0;
   window.addEventListener("dragenter", function (e) { e.preventDefault(); depth++; document.body.classList.add("dragging"); });
   window.addEventListener("dragleave", function () { if (--depth <= 0) { depth = 0; document.body.classList.remove("dragging"); } });
@@ -632,6 +795,14 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     e.preventDefault(); depth = 0; document.body.classList.remove("dragging");
     var dt = e.dataTransfer;
     if (!dt) return;
+    var entries = Array.prototype.map.call(dt.items || [], function (it) {
+      return it.kind === "file" && it.webkitGetAsEntry ? it.webkitGetAsEntry() : null;
+    }).filter(Boolean);
+    if (entries.some(function (en) { return en.isDirectory; })) {
+      toast("Reading folder…");
+      Promise.all(entries.map(readEntries)).then(function (lists) { addFiles([].concat.apply([], lists), true); });
+      return;
+    }
     if (dt.files.length) { addFiles(dt.files); return; }
     var text = dt.getData("text/uri-list") || dt.getData("text/plain");
     if (text) text.split(/\s+/).filter(function (s) { return /^https?:\/\//.test(s); }).forEach(addLink);
@@ -657,6 +828,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     var k = e.key;
     if (k === "o" || k === "O") setMode(mode === "zones" ? "outline" : mode === "outline" ? "off" : "zones");
     else if ((k === "m" || k === "M") && isVideo()) toggleMute();
+    else if ((k === "s" || k === "S") && isVideo()) cycleSpeed();
     else if (k === " " && isVideo()) { e.preventDefault(); togglePlay(); }
     else if (k === "ArrowLeft") { e.preventDefault(); step(-1); }
     else if (k === "ArrowRight") { e.preventDefault(); step(1); }
@@ -681,7 +853,26 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     g.fillStyle = "#fff"; g.font = "700 34px Inter, sans-serif"; g.textAlign = "center"; g.fillText("LOGO", 970, 1272);
     return c.toDataURL("image/jpeg", 0.85);
   }
+  function loadHashLinks() {
+    var links = (location.hash.slice(1).match(/(?:^|&)link=[^&]+/g) || []).map(function (p) {
+      try { return decodeURIComponent(p.replace(/^&?link=/, "")); } catch (e) { return ""; }
+    }).filter(Boolean);
+    var have = files.map(function (f) { return f.source; });
+    links.filter(function (l) { return have.indexOf(l) < 0; }).forEach(addLink);
+    return links.length;
+  }
   function boot() {
+    // Restore remembered settings
+    if (saved.opacity >= 10 && saved.opacity <= 90) op.value = saved.opacity;
+    applyOpacity();
+    if (saved.mode === "zones" || saved.mode === "outline" || saved.mode === "off") setMode(saved.mode);
+    muted = !!saved.muted; applyMute();
+    if (saved.speedIdx >= 0 && saved.speedIdx < SPEEDS.length) speedIdx = saved.speedIdx; applySpeed();
+
+    // Opened from a "Copy check link"? Load those Dropbox files instead of the example.
+    window.addEventListener("hashchange", loadHashLinks);
+    if (loadHashLinks()) return;
+
     var url = makeExample();
     files.push({ id: nextId++, name: "example-reel-frame.jpg", kind: "image", size: null, url: url, thumb: url, w: 1080, h: 1920, example: true });
     renderList(); select(0);
