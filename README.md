@@ -13,6 +13,8 @@ Drag images or videos (straight from Dropbox in Finder) onto the page, or paste 
 - **Save frame**: downloads the current frame with the overlay as a PNG (dropped files only)
 - **Copy check link** (Dropbox links): a link that opens the checker with that file loaded
 
+When adding several files at once (a folder, a multi-file drop, the Dropbox picker or a Dropbox folder link), files whose **name** says another size, like `16x9`, `4x5`, `1x1` or `1920x1080`, are skipped automatically; a folder name counts too (e.g. `16x9 cutdowns/`). Files with no size in the name are added and marked **No spec**. A single file added on its own is always added.
+
 You can also drop a whole folder, use **Select a folder**, or click **Choose from Dropbox** to pick files (several at once) straight from Dropbox. The picker uses the Dropbox app "C&C Reel Safe Zones" (app key in `index.html`; allowed domain `ronanheal.github.io`). Overlay, opacity, mute and speed are remembered in each browser.
 
 Files are read by the browser and are never uploaded anywhere.

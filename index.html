@@ -157,8 +157,8 @@ body.dragging .drop{border-color:var(--red);background:var(--red-wash)}
 /* ---------- stage ---------- */
 .center{display:flex;flex-direction:column;align-items:center;gap:14px;min-width:0}
 .phone-area{display:flex;justify-content:center;width:100%}
-.phone{padding:9px;border-radius:22px;background:#1C1A16;box-shadow:var(--e-3);max-width:100%}
-.stage{position:relative;overflow:hidden;background:var(--screen);border-radius:14px;
+.phone{padding:9px;border-radius:34px;background:#1C1A16;box-shadow:var(--e-3);max-width:100%}
+.stage{position:relative;overflow:hidden;background:var(--screen);border-radius:26px;
   aspect-ratio:9/16;height:clamp(420px,calc(100vh - 250px),780px);max-width:100%}
 @media (max-width:720px){.phone{width:100%}.stage{height:auto;width:100%}}
 .stage img,.stage video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
@@ -478,6 +478,34 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     var p = (range.value - range.min) / (range.max - range.min) * 100;
     range.style.setProperty("--p", p + "%");
   }
+  // What size does the file NAME claim? "9x16", "1080x1920", "16x9", "4:5"…
+  // Returns {kind: "reel" | "other" | "none", label}
+  var KNOWN_COLON = { "9:16": 1, "16:9": 1, "4:5": 1, "5:4": 1, "1:1": 1, "4:3": 1, "3:4": 1, "2:3": 1, "3:2": 1, "21:9": 1 };
+  function specOf(text) {
+    var base = String(text).replace(/\.[a-z0-9]{2,5}$/i, ""), found = [], m;
+    var re = /(^|[^0-9])(\d{1,4})\s*[x×X]\s*(\d{1,4})(?![0-9])/g;
+    while ((m = re.exec(base))) if (+m[2] > 0 && +m[3] > 0) found.push([+m[2], +m[3], m[2] + "x" + m[3]]);
+    var re2 = /(^|[^0-9])(\d{1,2}):(\d{1,2})(?![0-9])/g;
+    while ((m = re2.exec(base))) if (KNOWN_COLON[m[2] + ":" + m[3]]) found.push([+m[2], +m[3], m[2] + ":" + m[3]]);
+    if (!found.length) return { kind: "none" };
+    var reel = found.filter(function (p) { return Math.abs((p[0] / p[1]) / REEL - 1) < 0.01; });
+    return reel.length ? { kind: "reel", label: reel[0][2] } : { kind: "other", label: found[0][2] };
+  }
+  // File name wins; otherwise a folder in the path can say it (e.g. "16x9 cutdowns/clip.mp4")
+  function nameSpec(path) {
+    var parts = String(path).split("/"), own = specOf(parts.pop());
+    if (own.kind !== "none") return own;
+    for (var i = parts.length - 1; i >= 0; i--) { var sp = specOf(parts[i]); if (sp.kind !== "none") return sp; }
+    return { kind: "none" };
+  }
+  function addedMsg(n, offSpec, other, where) {
+    var msg = (n ? "Added " + n + (n === 1 ? " file" : " files") : "Nothing added") + (where || "");
+    var bits = [];
+    if (offSpec.length) bits.push(offSpec.length + " named for another size (" + offSpec.slice(0, 2).map(function (x) { return x.label; }).filter(function (v, i, a) { return a.indexOf(v) === i; }).join(", ") + (offSpec.length > 2 ? "…" : "") + ")");
+    if (other) bits.push(other + (other === 1 ? " that isn't an image or video" : " that aren't images or videos"));
+    return msg + (bits.length ? ", skipped " + bits.join(" and ") : "") + ".";
+  }
+
   function assess(f) {
     if (f.error) return { cls: "bad", pill: "Can't open", text: f.error };
     if (!f.w && f.dbx && !f.url) return { cls: "ex", pill: "Not opened", text: "Opens when you select it. It downloads from Dropbox first." };
@@ -491,16 +519,19 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
 
   // ---------- adding files ----------
   function addFiles(fileList, fromFolder) {
-    var added = [], skipped = 0;
+    var added = [], skipped = 0, offSpec = [];
     var arr = Array.prototype.slice.call(fileList).filter(function (file) { return file.name.charAt(0) !== "."; });
     if (fromFolder) arr.sort(function (a, b) { return a.name.localeCompare(b.name, undefined, { numeric: true }); });
+    var batch = fromFolder || arr.length > 1;   // a single hand-picked file is always added
     arr.forEach(function (file) {
       var kind = file.type.indexOf("video/") === 0 ? "video"
                : file.type.indexOf("image/") === 0 ? "image"
                : /\.(mp4|mov|m4v|webm)$/i.test(file.name) ? "video"
                : /\.(jpe?g|png|gif|webp|avif)$/i.test(file.name) ? "image" : null;
       if (!kind) { skipped++; return; }
-      var f = { id: nextId++, name: file.name, size: file.size, kind: kind, url: URL.createObjectURL(file) };
+      var spec = nameSpec(file.webkitRelativePath || file.name);
+      if (batch && spec.kind === "other") { offSpec.push(spec); return; }
+      var f = { id: nextId++, name: file.name, size: file.size, kind: kind, url: URL.createObjectURL(file), spec: spec };
       files.push(f); added.push(f);
       probe(f);
     });
@@ -509,11 +540,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
       renderList();
       select(files.indexOf(added[0]));
     }
-    if (fromFolder || skipped) {
-      var msg = added.length ? "Added " + added.length + (added.length === 1 ? " file" : " files") : "No images or videos found";
-      if (skipped) msg += ", skipped " + skipped + " that " + (skipped === 1 ? "isn't an image or video" : "aren't images or videos");
-      toast(msg + ".");
-    }
+    if (fromFolder || skipped || offSpec.length) toast(addedMsg(added.length, offSpec, skipped));
   }
 
   // Folder drops: walk directories (Chrome, Safari, Edge, Firefox all support webkitGetAsEntry)
@@ -563,7 +590,9 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     if (r.folder) { openFolderLink(raw, !!meta.gesture); return true; }
     var kind = IMG_EXT.test(r.name) ? "image" : VID_EXT.test(r.name) ? "video" : null;
     if (!kind) return linkMsg("Can't tell if that's an image or a video. Links to JPG, PNG, MP4 or MOV files work.", true), false;
-    var f = { id: nextId++, name: r.name, size: meta.size != null ? meta.size : null, kind: kind, url: r.url, remote: true, source: raw.trim(), thumb: meta.thumb };
+    var spec = nameSpec(r.name);
+    if (meta.batch && spec.kind === "other") return { skipped: spec };
+    var f = { id: nextId++, name: r.name, size: meta.size != null ? meta.size : null, kind: kind, url: r.url, remote: true, source: raw.trim(), thumb: meta.thumb, spec: spec };
     files.filter(function (x) { return x.example; }).forEach(function (x) { removeFile(x.id, true); });
     files.push(f); probe(f);
     renderList();
@@ -704,11 +733,13 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
       if (!media.length) { linkMsg("No images or videos in that folder.", true); return; }
       files.filter(function (x) { return x.example; }).forEach(function (x) { removeFile(x.id, true); });
       var already = files.filter(function (x) { return x.dbx; }).map(function (x) { return x.dbx.url + x.dbx.path; });
-      var added = [];
+      var added = [], offSpec = [];
       media.forEach(function (e) {
         if (already.indexOf(url + e.relPath) >= 0) return;
+        var spec = nameSpec(e.relPath);
+        if (spec.kind === "other") { offSpec.push(spec); return; }
         var mi = e.media_info && e.media_info.metadata;
-        var f = { id: nextId++, name: e.relPath.slice(1), size: e.size, kind: VID_EXT.test(e.name) ? "video" : "image", dbx: { url: url, path: e.relPath } };
+        var f = { id: nextId++, name: e.relPath.slice(1), size: e.size, kind: VID_EXT.test(e.name) ? "video" : "image", dbx: { url: url, path: e.relPath }, spec: spec };
         if (mi && mi.dimensions) { f.w = mi.dimensions.width; f.h = mi.dimensions.height; }
         if (mi && mi.duration) f.duration = mi.duration / 1000;
         files.push(f); added.push(f);
@@ -716,7 +747,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
       renderList();
       if (added.length) select(files.indexOf(added[0]));
       var skipped = entries.length - media.length;
-      linkMsg("Added " + added.length + (added.length === 1 ? " file" : " files") + " from the folder" + (skipped ? ", skipped " + skipped + " other " + (skipped === 1 ? "file" : "files") : "") + ".", false);
+      linkMsg(addedMsg(added.length, offSpec, skipped, " from the folder"), false);
       fetchThumbs(added);
     }).catch(function (e) {
       if (e && e.auth && raw) { $("linkInput").value = raw.trim(); linkMsg("Your Dropbox sign-in has expired. Click Add to reconnect.", true, true); return; }
@@ -784,15 +815,17 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
       multiselect: true,
       extensions: [".mp4", ".mov", ".m4v", ".webm", ".jpg", ".jpeg", ".png", ".gif", ".webp"],
       success: function (picked) {
-        var firstNew = null;
+        var firstNew = null, offSpec = [], n = 0;
         picked.sort(function (a, b) { return a.name.localeCompare(b.name, undefined, { numeric: true }); })
           .forEach(function (p) {
             var thumb = p.thumbnailLink ? p.thumbnailLink.replace(/([?&]bounding_box=)\d+/, "$1256") : undefined;
-            var f = addLink(p.link, { name: p.name, size: p.bytes, thumb: thumb, quiet: true });
+            var f = addLink(p.link, { name: p.name, size: p.bytes, thumb: thumb, quiet: true, batch: picked.length > 1 });
+            if (f && f.skipped) { offSpec.push(f.skipped); return; }
+            if (f) n++;
             if (f && !firstNew) firstNew = f;
           });
         if (firstNew) select(files.indexOf(firstNew));
-        toast("Added " + picked.length + (picked.length === 1 ? " file" : " files") + " from Dropbox.");
+        toast(addedMsg(n, offSpec, 0, " from Dropbox"));
       }
     });
   };
@@ -867,7 +900,12 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
       meta.textContent = f.example ? "Example frame" : [f.w ? f.w + "×" + f.h : null, f.duration ? fmtTime(f.duration) : null, (f.remote || f.dbx) ? (f.size != null ? fmtSize(f.size) + " · Dropbox" : "Dropbox link") : fmtSize(f.size)].filter(Boolean).join(" · ");
       var pill = document.createElement("span"); pill.className = "pill " + (f.example ? "ex" : a.cls); pill.textContent = f.example ? "Example" : a.pill;
       var line = document.createElement("span"); line.className = "file-line";
-      line.append(pill, meta);
+      line.append(pill);
+      if (!f.example && f.spec && f.spec.kind === "none") {
+        var ns = document.createElement("span"); ns.className = "pill ex"; ns.textContent = "No spec";
+        ns.title = "No size (like 9x16) in the file name"; line.append(ns);
+      }
+      line.append(meta);
       main.append(nm, line);
 
       var end = document.createElement("span"); end.className = "file-end";
@@ -942,6 +980,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     var rows = [["Dimensions", f.w ? f.w + " × " + f.h : "—"], ["Ratio", f.w ? ratioName(f.w, f.h) : "—"]];
     if (f.kind === "video") rows.push(["Length", f.duration ? fmtTime(f.duration) : "—"]);
     if (f.size != null) rows.push(["File size", fmtSize(f.size)]);
+    if (f.spec && !f.example) rows.push(["Name says", f.spec.kind === "none" ? "No size in name" : f.spec.label]);
     if (f.remote || f.dbx) rows.push(["Source", "Dropbox"]);
     rows.forEach(function (r) {
       var d = document.createElement("div"), dt = document.createElement("dt"), dd = document.createElement("dd");
@@ -1152,7 +1191,8 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
     var cs = getComputedStyle(centerEl), gap = parseFloat(cs.rowGap) || 14;
     var availH = centerEl.clientHeight - dockEl.offsetHeight - gap - 18;   // 18 = phone bezel
     var byWidth = (centerEl.clientWidth - 18) * 16 / 9;
-    stage.style.height = Math.max(240, Math.floor(Math.min(availH, byWidth))) + "px";
+    // ~85% of the free height, capped, so the phone doesn't dominate on big screens
+    stage.style.height = Math.max(240, Math.floor(Math.min(availH * 0.86, byWidth, 760))) + "px";
   }
   // Measure after layout has settled (a resize across the desktop breakpoint changes the layout first)
   var fitQueued = false;
