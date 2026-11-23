@@ -4,7 +4,7 @@ A drag-and-drop checker for Instagram Reel safe zones, in the C&C style.
 
 **Open it:** https://ronanheal.github.io/reel-safe-zones/
 
-Drag images or videos (straight from Dropbox in Finder) onto the page, or paste a Dropbox share link (⌘V anywhere, or the link box). File links need Dropbox sharing set to "Anyone with the link". **Folder links** work too: the first time, a Dropbox sign-in window opens (once per browser), then every image and video in the folder (and up to two levels of subfolders) is listed. Each file downloads when you open it, so Save frame works for those as well. **Disconnect** under the link box signs out. Each file gets:
+Drag images or videos (straight from Dropbox in Finder) onto the page, or paste a Dropbox share link (⌘V anywhere, or the link box). File links need Dropbox sharing set to "Anyone with the link". **Folder links** work too: the first time, a Dropbox sign-in window opens (once per browser), then every image and video in the folder (and up to two levels of subfolders) is listed. Files download in the background one at a time (starting after the one you are viewing), so they open instantly; progress shows in the file list. Preloading stops at about 600 MB, and anything beyond that downloads when opened. Because folder files are downloaded, Save frame works for them too. **Disconnect** under the link box signs out. Each file gets:
 
 - the red safe-zone overlay on top (Zones / Outline / Off, adjustable opacity)
 - a 9:16 check, with a low-resolution warning under 1080 × 1920

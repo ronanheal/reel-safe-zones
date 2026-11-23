@@ -750,6 +750,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
       var skipped = entries.length - media.length;
       linkMsg(addedMsg(added.length, offSpec, skipped, " from the folder"), false);
       fetchThumbs(added);
+      queuePrefetch(added);
     }).catch(function (e) {
       if (e && e.auth && raw) { $("linkInput").value = raw.trim(); linkMsg("Your Dropbox sign-in has expired. Click Add to reconnect.", true, true); return; }
       linkMsg(dbxErrorText(e), true);
@@ -770,6 +771,25 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
 
   var MIME = { mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", webm: "video/webm", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", webp: "image/webp", avif: "image/avif" };
   function downloadText(f) { return "Downloading from Dropbox… " + fmtSize(f.got || 0) + (f.total ? " of " + fmtSize(f.total) : ""); }
+  // Background preload: after a folder loads, download its files one at a time,
+  // starting after the file being viewed, so the next click opens instantly.
+  // Stops at ~600 MB held in memory; anything beyond that downloads when opened.
+  var PREFETCH_CAP = 600e6, prefetchQ = [], prefetching = false;
+  function heldBytes() { return files.reduce(function (n, x) { return n + (x.dbx && x.url ? (x.size || 0) : 0); }, 0); }
+  function queuePrefetch(list) {
+    list.forEach(function (f) { if (f.dbx && !f.url && prefetchQ.indexOf(f) < 0) prefetchQ.push(f); });
+    if (!prefetching) prefetchNext();
+  }
+  function prefetchNext() {
+    prefetchQ = prefetchQ.filter(function (f) { return files.indexOf(f) >= 0 && !f.url && !f.error && !f.prefetchFailed; });
+    if (!prefetchQ.length) { prefetching = false; return; }
+    var f = prefetchQ.filter(function (x) { return files.indexOf(x) > current; })[0] || prefetchQ[0];
+    if (heldBytes() + (f.size || 0) > PREFETCH_CAP) { prefetching = false; prefetchQ = []; renderList(); return; }
+    prefetching = true;
+    ensureDownloaded(f).catch(function () { f.prefetchFailed = true; })   // it retries when opened
+      .then(function () { renderList(); if (files[current] === f) renderChecks(); setTimeout(prefetchNext, 50); });
+  }
+
   function ensureDownloaded(f) {
     if (f.url) return Promise.resolve(f);
     if (f.loading) return f.loading;
@@ -785,6 +805,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
             if (x.done) return new Blob(chunks, { type: type });
             chunks.push(x.value); f.got += x.value.length;
             if (files[current] === f && msgEl) msgEl.textContent = downloadText(f);
+            if (!f.lastPaint || Date.now() - f.lastPaint > 400) { f.lastPaint = Date.now(); renderList(); }
             return pump();
           });
         })();
@@ -898,7 +919,7 @@ kbd{font:600 11px/1 var(--display);min-width:22px;text-align:center;padding:4px 
       var main = document.createElement("span"); main.className = "file-main";
       var nm = document.createElement("span"); nm.className = "file-name"; nm.textContent = f.name; nm.title = f.name;
       var meta = document.createElement("span"); meta.className = "file-meta";
-      meta.textContent = f.example ? "Example frame" : [f.w ? f.w + "×" + f.h : null, f.duration ? fmtTime(f.duration) : null, (f.remote || f.dbx) ? (f.size != null ? fmtSize(f.size) + " · Dropbox" : "Dropbox link") : fmtSize(f.size)].filter(Boolean).join(" · ");
+      meta.textContent = f.example ? "Example frame" : [f.w ? f.w + "×" + f.h : null, f.duration ? fmtTime(f.duration) : null, (f.dbx && !f.url && f.loading) ? "Loading " + (f.total ? Math.round((f.got || 0) / f.total * 100) : 0) + "%" : null, (f.remote || f.dbx) ? (f.size != null ? fmtSize(f.size) + " · Dropbox" : "Dropbox link") : fmtSize(f.size)].filter(Boolean).join(" · ");
       var pill = document.createElement("span"); pill.className = "pill " + (f.example ? "ex" : a.cls); pill.textContent = f.example ? "Example" : a.pill;
       var line = document.createElement("span"); line.className = "file-line";
       line.append(pill);
